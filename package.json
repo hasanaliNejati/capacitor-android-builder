@@ -1,0 +1,34 @@
+{
+  "name": "capacitor-android-builder",
+  "version": "1.0.0",
+  "description": "Visual and CLI Android Builder for Capacitor apps with Cafe Bazaar, Myket, keystore signing, and live updates.",
+  "type": "module",
+  "main": "src/server.mjs",
+  "bin": {
+    "capacitor-builder": "./bin/cli.mjs",
+    "menchat-builder": "./bin/cli.mjs"
+  },
+  "scripts": {
+    "start": "node bin/cli.mjs",
+    "build-launcher": "cd launcher && build.cmd"
+  },
+  "files": [
+    "bin",
+    "src",
+    "scripts",
+    "launcher",
+    "README.md"
+  ],
+  "keywords": [
+    "capacitor",
+    "android",
+    "bazaar",
+    "myket",
+    "builder",
+    "live-update",
+    "keystore",
+    "apk"
+  ],
+  "author": "Menchat Team",
+  "license": "MIT"
+}

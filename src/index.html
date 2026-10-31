@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>بیلدر اندروید منچت</title>
+<link rel="icon" href="/favicon.png" />
+<style>
+  @font-face { font-family: Pofak; src: url(/font.woff2) format("woff2"); font-display: swap; }
+  :root {
+    --bg: #061f45; --panel: #0b2c5e; --panel-2: #0e3672; --line: #1d4a8c;
+    --text: #eaf1ff; --muted: #9fb5d9; --accent: #ffc83d; --accent-ink: #3a2600;
+    --ok: #3ddc84; --err: #ff6b6b; --warn: #ffb547; --cmd: #7cc4ff;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(1200px 600px at 85% -10%, #12468f 0%, transparent 60%), var(--bg);
+    color: var(--text); font: 14px/1.6 "Segoe UI", Tahoma, sans-serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; padding: 14px 22px;
+    border-bottom: 1px solid var(--line); flex-wrap: wrap;
+  }
+  header h1 { font: 700 22px/1 Pofak, "Segoe UI", Tahoma, sans-serif; margin: 0; letter-spacing: 0; }
+  header h1 span { color: var(--accent); }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-inline-start: auto; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; color: var(--muted); direction: ltr; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--ok); } .dot.err { background: var(--err); } .dot.warn { background: var(--warn); }
+
+  main { flex: 1; display: grid; grid-template-columns: minmax(380px, 470px) 1fr; gap: 18px; padding: 18px 22px; min-height: 0; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .col { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: auto; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .full { grid-column: 1 / -1; }
+  label { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--muted); }
+  input[type=text], input[type=number], input[type=password], select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 9px;
+    padding: 8px 10px; font: inherit; outline: none; width: 100%;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  input.ltr { direction: ltr; text-align: left; }
+  .check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+
+  .icon-row { display: flex; gap: 16px; align-items: center; }
+  .drop {
+    width: 116px; height: 116px; flex: none; border: 2px dashed var(--line); border-radius: 22px;
+    display: grid; place-items: center; text-align: center; font-size: 12px; color: var(--muted);
+    cursor: pointer; overflow: hidden; position: relative; background: var(--bg);
+  }
+  .drop.hover { border-color: var(--accent); }
+  .drop canvas { width: 100%; height: 100%; }
+  .previews { display: flex; gap: 14px; align-items: flex-end; }
+  .previews figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+  .previews canvas { width: 56px; height: 56px; }
+  .icon-ctrls { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+  input[type=color] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: none; }
+  input[type=range] { accent-color: var(--accent); width: 100%; }
+
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  details[open] summary { margin-bottom: 12px; }
+
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button {
+    font: inherit; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+    padding: 10px 14px; cursor: pointer; font-weight: 600; transition: transform .06s, filter .15s;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.15); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { grid-column: 1 / -1; background: var(--accent); color: var(--accent-ink); border-color: transparent; font-size: 16px; padding: 13px; font-family: Pofak, "Segoe UI", Tahoma, sans-serif; }
+  button.danger { color: var(--err); }
+  button.small { padding: 6px 10px; font-size: 12px; font-weight: 500; }
+  .row { display: flex; gap: 8px; align-items: end; }
+  .row > label { flex: 1; }
+
+  .log-card { display: flex; flex-direction: column; min-height: 0; flex: 1; padding: 0; overflow: hidden; }
+  .log-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .status { font-weight: 700; }
+  .status.running { color: var(--accent); } .status.ok { color: var(--ok); } .status.failed, .status.stopped { color: var(--err); }
+  .step { color: var(--muted); font-size: 13px; }
+  .log-head .spacer { flex: 1; }
+  #log {
+    flex: 1; overflow: auto; margin: 0; padding: 12px 16px; direction: ltr; text-align: left;
+    font: 12px/1.55 Consolas, "Cascadia Mono", monospace; background: #041633; white-space: pre-wrap; word-break: break-word; min-height: 300px;
+  }
+  #log .cmd { color: var(--cmd); } #log .step { color: var(--accent); font-weight: 700; margin-top: 6px; display: block; }
+  #log .ok { color: var(--ok); } #log .error { color: var(--err); font-weight: 700; } #log .warn { color: var(--warn); }
+  #log .rtl { direction: rtl; text-align: right; display: block; font-family: "Segoe UI", Tahoma, sans-serif; }
+  .empty { color: var(--muted); font-family: "Segoe UI", Tahoma, sans-serif; direction: rtl; text-align: right; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; display: none; }
+  .running .spinner, .spinner.on { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .hint { font-size: 11.5px; color: var(--muted); }
+  .publish { display: grid; gap: 8px; margin-top: 12px; }
+  .publish button { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: right; }
+  .publish button b { direction: ltr; font: 600 13px Consolas, monospace; color: var(--accent); }
+  .publish button.major { border-color: var(--warn); }
+  .publish .hint { margin: -4px 4px 4px; }
+  .releases { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  .releases th { color: var(--muted); font-weight: 500; text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  .releases td { padding: 6px; border-bottom: 1px solid var(--line); }
+  .releases td.ltr { direction: ltr; text-align: left; font-family: Consolas, monospace; }
+  .releases tr.current td { background: #12406f; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; background: var(--bg); border: 1px solid var(--line); }
+  .tag.test { color: var(--warn); border-color: var(--warn); }
+  .tag.cur { color: var(--ok); border-color: var(--ok); }
+  .tag.pub { color: var(--ok); border-color: var(--ok); }
+  .tag.draft { color: var(--muted); border-color: var(--line); }
+  .table-actions { display: flex; gap: 4px; align-items: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span id="headerAppName">اپلیکیشن</span> <span>بیلدر اندروید</span></h1><small id="ver" class="hint"></small>
+  <div class="chips">
+    <span class="chip" id="chip-jdk"><i class="dot"></i>JDK</span>
+    <span class="chip" id="chip-sdk"><i class="dot"></i>Android SDK</span>
+    <span class="chip" id="chip-dev"><i class="dot"></i>Device</span>
+  </div>
+</header>
+
+<main>
+  <section class="col">
+    <div class="card">
+      <h2>مشخصات برنامه</h2>
+      <div class="grid">
+        <label class="full">اسم برنامه
+          <input type="text" id="appName" />
+        </label>
+        <label class="full">شناسه (Package / Application ID)
+          <input type="text" id="appId" class="ltr" spellcheck="false" />
+        </label>
+        <label>نسخه x.y.z (همان package.json)
+          <input type="text" id="versionName" class="ltr" spellcheck="false" />
+        </label>
+        <label>شماره‌ی نسخه (versionCode)
+          <input type="number" id="versionCode" class="ltr" min="1" />
+        </label>
+        <label class="check full"><input type="checkbox" id="autoIncrement" /> بعد از هر بیلد، versionCode خودکار یکی بالا برود</label>
+        <label>جهت صفحه
+          <select id="orientation">
+            <option value="portrait">عمودی</option>
+            <option value="sensorPortrait">عمودی (با چرخش ۱۸۰°)</option>
+            <option value="landscape">افقی</option>
+            <option value="sensorLandscape">افقی (هر دو طرف)</option>
+            <option value="unspecified">آزاد</option>
+          </select>
+        </label>
+        <label>آدرس سرور
+          <input type="text" id="serverUrl" class="ltr" spellcheck="false" />
+        </label>
+        <label>نوع بیلد
+          <select id="buildType">
+            <option value="test">تست: «منچت تست» با شناسه‌ی ‎.dev، کنار نسخه‌ی اصلی نصب می‌شود</option>
+            <option value="release">اصلی (اتصال مستقیم به سرور)</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>استور و پرداخت درون‌برنامه‌ای</h2>
+      <div class="grid">
+        <label class="check"><input type="checkbox" id="store-bazaar" /> کافه‌بازار</label>
+        <label class="check"><input type="checkbox" id="store-myket" /> مایکت</label>
+        <div class="hint full">برای هر استوری که تیک بخورد یک APK جدا ساخته می‌شود. APK مایکت هیچ چیزی از پرداخت بازار ندارد و برعکس. اگر هر دو تیک بخورند، «اجرا روی گوشی» و «نصب» APK کافه‌بازار را نصب می‌کنند.</div>
+        <label class="full">کلید RSA کافه‌بازار (اختیاری؛ پیشخوان ← پرداخت درون‌برنامه‌ای)
+          <input type="text" id="bazaarRsaKey" class="ltr" spellcheck="false" autocomplete="off" />
+        </label>
+        <label class="full">کلید RSA مایکت (لازم برای خرید؛ پنل توسعه‌دهنده‌ی مایکت)
+          <input type="text" id="myketRsaKey" class="ltr" spellcheck="false" autocomplete="off" />
+        </label>
+        <label class="check full" style="margin-top:8px">
+          <input type="checkbox" id="directApkDownload" /> امکان دانلود مستقیم APK درون برنامه (برای کافه‌بازار و مایکت باید غیرفعال باشد)
+        </label>
+        <div class="hint full">با غیرفعال بودن این تیک، دسترسی REQUEST_INSTALL_PACKAGES از بازی حذف شده و بازیکنان برای نسخه‌های جدید ناتیو به صفحه استور هدایت می‌شوند (آپدیت‌های داخلی وب بدون تغییر فعال می‌مانند).</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>کلید امضا (Keystore)</h2>
+      <div class="hint" id="signing-status"></div>
+      <div class="grid" style="margin-top:10px">
+        <label class="full">فایل keystore (‎.keystore / .jks)
+          <input type="file" id="keystoreFile" />
+        </label>
+        <label>alias (خودکار از داخل فایل)
+          <input type="text" id="keyAlias" class="ltr" spellcheck="false" autocomplete="off" list="keyAliases" />
+          <datalist id="keyAliases"></datalist>
+        </label>
+        <label>رمز keystore
+          <input type="password" id="storePassword" class="ltr" autocomplete="new-password" />
+        </label>
+        <label class="full">رمز کلید (اگر با رمز keystore یکی است خالی بگذار)
+          <input type="password" id="keyPassword" class="ltr" autocomplete="new-password" />
+        </label>
+        <div class="row full">
+          <button class="small" id="btn-signing-save">ثبت و بررسی کلید</button>
+          <button class="small danger" id="btn-signing-clear">حذف کلید</button>
+        </div>
+        <label class="full">امضای APK
+          <select id="signWith">
+            <option value="debug">کلید تست (debug)، فقط برای تست؛ روی نسخه‌ی بازار نصب نمی‌شود</option>
+            <option value="release">کلید خودمان (release)، برای بازار و نصب روی نسخه‌ی بازار</option>
+          </select>
+        </label>
+        <div class="hint full">فایل و رمزها فقط روی همین کامپیوتر (android-builder/signing) می‌مانند و در git نمی‌روند. از keystore و رمزهایش نسخه‌ی پشتیبان نگه دار؛ بدون آن نمی‌شود برنامه را در بازار آپدیت کرد.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>آیکون</h2>
+      <div class="icon-row">
+        <div class="drop" id="drop" title="یک تصویر PNG مربعی (ترجیحاً ۱۰۲۴×۱۰۲۴) بکش اینجا یا کلیک کن">
+          <span id="drop-text">تصویر را بکش اینجا<br />یا کلیک کن</span>
+          <canvas id="pv-big" width="232" height="232" hidden></canvas>
+        </div>
+        <div>
+          <div class="previews">
+            <figure><canvas id="pv-adaptive" width="112" height="112"></canvas>دایره</figure>
+            <figure><canvas id="pv-squircle" width="112" height="112"></canvas>گوشه‌گرد</figure>
+            <figure><canvas id="pv-legacy" width="112" height="112"></canvas>مربع</figure>
+          </div>
+          <div class="icon-ctrls">
+            <span>پس‌زمینه</span><input type="color" id="iconBackground" />
+            <span>اندازه</span><input type="range" id="iconScale" min="40" max="150" step="1" />
+          </div>
+        </div>
+      </div>
+      <input type="file" id="file" accept="image/*" hidden />
+    </div>
+
+    <div class="card">
+      <h2>گوشی</h2>
+      <div class="row">
+        <label>دستگاه
+          <select id="device"><option value="">اولین گوشی وصل</option></select>
+        </label>
+        <button class="small" id="refresh">تازه‌سازی</button>
+      </div>
+      <details style="margin-top:14px">
+        <summary>تنظیمات پیشرفته</summary>
+        <div class="grid">
+          <label class="full">مسیر JDK (خالی = تشخیص خودکار)
+            <input type="text" id="jdkPath" class="ltr" spellcheck="false" />
+          </label>
+          <label class="full">مسیر Android SDK (خالی = تشخیص خودکار)
+            <input type="text" id="sdkPath" class="ltr" spellcheck="false" />
+          </label>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>شبکه (برای دانلود Gradle و کتابخانه‌های اندروید)</h2>
+      <label class="check" style="margin-bottom:10px"><input type="checkbox" id="useMirrors" /> استفاده از میرورهای ایرانی (مایکت، en-mirror) و پشتیبان (Aliyun، Tencent)</label>
+      <div class="row">
+        <label style="flex:0 0 170px">پروکسی
+          <select id="proxyMode">
+            <option value="auto">خودکار (v2rayN و…)</option>
+            <option value="http">HTTP</option>
+            <option value="socks">SOCKS</option>
+            <option value="none">بدون پروکسی</option>
+          </select>
+        </label>
+        <label>آدرس
+          <input type="text" id="proxyAddress" class="ltr" spellcheck="false" placeholder="127.0.0.1:10808" />
+        </label>
+        <button class="small" id="btn-proxy">بررسی</button>
+      </div>
+      <div class="hint" id="proxy-info" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h2>انتشار برای بازیکن‌ها</h2>
+      <div class="hint">نسخه‌ی فعلی <b id="pub-current" class="ltr"></b> · سرور <span id="pub-server" class="ltr"></span></div>
+      <label style="margin-top:10px">کلید انتشار (APP_UPDATE_PUBLISH_KEY سرور)
+        <input type="password" id="publishKey" class="ltr" autocomplete="off" spellcheck="false" />
+      </label>
+      <div class="publish">
+        <button id="btn-pub-z">آپدیت اختیاری (z) <b id="next-z"></b></button>
+        <div class="hint">تغییر کوچک. بازیکن پاپ‌آپ «بروزرسانی / بعداً» می‌بیند. بدون APK.</div>
+        <button id="btn-pub-y">آپدیت اجباری (y) <b id="next-y"></b></button>
+        <div class="hint">تغییر مهم. بازیکن تا آپدیت نکند نمی‌تواند بازی کند. بدون APK.</div>
+        <button id="btn-pub-x" class="major">ساخت و انتشار APK جدید (x) <b id="next-x"></b></button>
+        <div class="hint">فقط وقتی کد اندرویدی عوض شده (پلاگین جدید، جاوا، مجوزها). بازیکن باید APK جدید نصب کند.</div>
+        <button id="btn-pub-apk">انتشار آخرین APK ساخته‌شده <b id="last-apk"></b></button>
+        <div class="hint">همان APK آخرین بیلد، بدون تغییر نسخه؛ وقتی نسخه را خودت تعیین کرده‌ای و با «کلید خودمان» بیلد گرفته‌ای. امضا و نسخه‌اش قبل از انتشار بررسی می‌شود.</div>
+      </div>
+
+    <div class="card">
+      <h2>نسخه‌های روی سرور</h2>
+      <div class="row">
+        <div class="hint" id="releases-info" style="flex:1">فهرست همه‌ی APKها و آپدیت‌های داخلیِ منتشرشده روی سرور.</div>
+        <button class="small" id="btn-releases">بارگذاری فهرست</button>
+      </div>
+      <table class="releases" id="releases" hidden>
+        <thead><tr><th>نوع</th><th>نسخه</th><th>وضعیت انتشار</th><th>بیلد</th><th>تاریخ</th><th>حجم</th><th>عملیات</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="hint" style="margin-top:8px">با حذف یک نسخه، سرور به جدیدترین نسخه‌ی باقی‌مانده برمی‌گردد. گوشی‌هایی که آپدیت داخلیِ حذف‌شده را گرفته‌اند خودشان به کد داخل APKشان برمی‌گردند. بعد از حذف، نسخه‌ی package.json را هم اگر لازم است پایین بیاور.</div>
+    </div>
+    </div>
+
+    <div class="card actions">
+      <button class="primary" id="btn-build-run">▶ بیلد و اجرا روی گوشی</button>
+      <button id="btn-build">فقط بیلد APK</button>
+      <button id="btn-install">نصب آخرین APK</button>
+      <button id="btn-save">ذخیره‌ی تنظیمات</button>
+      <button id="btn-artifacts">باز کردن پوشه‌ی APK</button>
+      <button class="danger" id="btn-uninstall">حذف از گوشی</button>
+      <button class="danger" id="btn-stop" disabled>توقف</button>
+    </div>
+  </section>
+
+  <section class="col">
+    <div class="card log-card">
+      <div class="log-head" id="log-head">
+        <span class="spinner"></span>
+        <span class="status" id="status">آماده</span>
+        <span class="step" id="step"></span>
+        <span class="spacer"></span>
+        <span class="hint" id="elapsed"></span>
+        <button class="small" id="btn-copy">کپی لاگ</button>
+      </div>
+      <pre id="log"><span class="empty">خروجی بیلد اینجا نمایش داده می‌شود.</span></pre>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const FIELDS = ["useMirrors", "appName", "appId", "versionName", "versionCode", "autoIncrement", "orientation", "serverUrl", "buildType", "directApkDownload", "iconBackground", "iconScale", "device", "proxyMode", "proxyAddress", "jdkPath", "sdkPath", "signWith", "bazaarRsaKey", "myketRsaKey"];
+const STORES = ["bazaar", "myket"];
+let config = {};
+let iconImg = null;       // HTMLImageElement of the source
+let iconSourceB64 = null; // new source to upload
+let iconDirty = false;
+let job = { status: "idle" };
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2600); }
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+// ---------- form ----------
+function fill(cfg) {
+  config = cfg;
+  if (cfg.appName) {
+    document.title = `${cfg.appName} — بیلدر اندروید`;
+    const h = document.getElementById("headerAppName");
+    if (h) h.textContent = cfg.appName;
+  }
+  for (const k of FIELDS) {
+    const el = $(k); if (!el) continue;
+    if (el.type === "checkbox") el.checked = !!cfg[k];
+    else if (k === "device") el.dataset.want = cfg[k] || "";
+    else el.value = cfg[k] ?? "";
+  }
+  for (const st of STORES) $("store-" + st).checked = (cfg.stores || []).includes(st);
+  renderSigning(cfg.signing);
+  renderPublish();
+}
+function readForm() {
+  const out = {};
+  for (const k of FIELDS) {
+    const el = $(k); if (!el) continue;
+    out[k] = el.type === "checkbox" ? el.checked : el.type === "number" || el.type === "range" ? Number(el.value) : el.value.trim();
+  }
+  out.stores = STORES.filter((st) => $("store-" + st).checked);
+  return out;
+}
+
+// ---------- icon ----------
+const LEGACY = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
+function drawIcon(ctx, size, { bg = true, shape = "square", fg = false } = {}) {
+  const scale = Number($("iconScale").value) / 100;
+  ctx.clearRect(0, 0, size, size);
+  ctx.save();
+  if (shape === "circle") { ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); ctx.clip(); }
+  if (shape === "squircle") { const r = size * 0.22; ctx.beginPath(); ctx.roundRect(0, 0, size, size, r); ctx.clip(); }
+  if (bg) { ctx.fillStyle = $("iconBackground").value; ctx.fillRect(0, 0, size, size); }
+  if (iconImg) {
+    // "100%" means the image fills the visible area; for the adaptive foreground that's the inner 72 of 108dp.
+    const area = fg ? size * (72 / 108) : size;
+    const box = area * scale;
+    const r = Math.min(box / iconImg.naturalWidth, box / iconImg.naturalHeight);
+    const w = iconImg.naturalWidth * r, h = iconImg.naturalHeight * r;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(iconImg, (size - w) / 2, (size - h) / 2, w, h);
+  }
+  ctx.restore();
+}
+function renderPreviews() {
+  const has = !!iconImg;
+  $("pv-big").hidden = !has; $("drop-text").hidden = has;
+  if (has) drawIcon($("pv-big").getContext("2d"), 232, { shape: "squircle" });
+  drawIcon($("pv-adaptive").getContext("2d"), 112, { shape: "circle" });
+  drawIcon($("pv-squircle").getContext("2d"), 112, { shape: "squircle" });
+  drawIcon($("pv-legacy").getContext("2d"), 112, { shape: "square" });
+}
+function canvasB64(size, opts) {
+  const c = document.createElement("canvas"); c.width = c.height = size;
+  drawIcon(c.getContext("2d"), size, opts);
+  return c.toDataURL("image/png").split(",")[1];
+}
+function buildIcons() {
+  const icons = {};
+  for (const [d, s] of Object.entries(LEGACY)) {
+    icons[`mipmap-${d}/ic_launcher.png`] = canvasB64(s, { shape: "square" });
+    icons[`mipmap-${d}/ic_launcher_round.png`] = canvasB64(s, { shape: "circle" });
+    icons[`mipmap-${d}/ic_launcher_foreground.png`] = canvasB64(Math.round(s * 108 / 48), { bg: false, fg: true });
+  }
+  return icons;
+}
+function loadImage(src) { return new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = src; }); }
+async function takeFile(file) {
+  if (!file || !file.type.startsWith("image/")) return toast("یک فایل تصویری انتخاب کن");
+  const url = await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(file); });
+  iconImg = await loadImage(url);
+  // normalise the stored source to PNG
+  const c = document.createElement("canvas"); c.width = iconImg.naturalWidth; c.height = iconImg.naturalHeight;
+  c.getContext("2d").drawImage(iconImg, 0, 0);
+  iconSourceB64 = c.toDataURL("image/png").split(",")[1];
+  iconDirty = true;
+  renderPreviews();
+}
+$("drop").onclick = () => $("file").click();
+$("file").onchange = (e) => takeFile(e.target.files[0]);
+$("drop").ondragover = (e) => { e.preventDefault(); $("drop").classList.add("hover"); };
+$("drop").ondragleave = () => $("drop").classList.remove("hover");
+$("drop").ondrop = (e) => { e.preventDefault(); $("drop").classList.remove("hover"); takeFile(e.dataTransfer.files[0]); };
+$("iconBackground").oninput = () => { iconDirty = true; renderPreviews(); };
+$("iconScale").oninput = () => { iconDirty = true; renderPreviews(); };
+
+// ---------- save / run ----------
+async function save(quiet) {
+  const body = { config: readForm() };
+  const key = $("publishKey").value.trim();
+  if (key) body.publishKey = key;
+  if (iconDirty && iconImg) body.icons = buildIcons();
+  if (iconSourceB64) body.source = iconSourceB64;
+  const { config: cfg } = await api("/api/config", body);
+  iconDirty = false; iconSourceB64 = null;
+  $("publishKey").value = "";
+  fill(cfg);
+  if (!quiet) toast("ذخیره شد");
+}
+async function start(action) {
+  try { if (action !== "install") await save(true); await api("/api/run", { action }); }
+  catch (e) { toast(e.message); }
+}
+$("btn-save").onclick = () => save().catch((e) => toast(e.message));
+
+// ---------- signing key ----------
+function renderSigning(sig) {
+  const el = $("signing-status");
+  if (sig && sig.set) {
+    el.textContent = `کلید ثبت‌شده: ${sig.fileName} · alias ${sig.alias} · SHA-256 ${sig.sha256}${sig.owner ? " · " + sig.owner : ""}`;
+    if (!$("keyAlias").value) $("keyAlias").value = sig.alias;
+  } else el.textContent = "هنوز کلیدی ثبت نشده؛ APK با کلید تست امضا می‌شود.";
+  $("signWith").querySelector('option[value="release"]').disabled = !(sig && sig.set);
+  $("btn-signing-clear").disabled = !(sig && sig.set);
+}
+const readFileB64 = (f) => new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result.split(",")[1]); r.readAsDataURL(f); });
+// Picking a keystore fills the alias from inside it (no password needed).
+$("keystoreFile").onchange = async () => {
+  const f = $("keystoreFile").files[0];
+  $("keyAliases").innerHTML = "";
+  if (!f) return;
+  try {
+    const { aliases } = await api("/api/signing/aliases", { file: await readFileB64(f) });
+    for (const a of aliases) { const o = document.createElement("option"); o.value = a; $("keyAliases").appendChild(o); }
+    if (aliases.length) $("keyAlias").value = aliases[0];
+    toast(aliases.length > 1 ? `این فایل ${aliases.length} کلید دارد؛ alias را از فهرست انتخاب کن` : aliases.length ? `alias: ${aliases[0]}` : "کلیدی در این فایل پیدا نشد");
+  } catch (e) { toast(e.message); }
+};
+$("btn-signing-save").onclick = async () => {
+  const btn = $("btn-signing-save");
+  try {
+    btn.disabled = true; $("signing-status").textContent = "در حال بررسی کلید…";
+    const f = $("keystoreFile").files[0];
+    const body = { alias: $("keyAlias").value.trim(), storePassword: $("storePassword").value, keyPassword: $("keyPassword").value };
+    if (f) { body.file = await readFileB64(f); body.fileName = f.name; }
+    const { signing } = await api("/api/signing", body);
+    $("storePassword").value = ""; $("keyPassword").value = ""; $("keystoreFile").value = "";
+    config.signing = signing; renderSigning(signing);
+    $("signWith").value = "release"; await save(true);
+    toast("کلید ثبت شد و امضا روی «کلید خودمان» رفت");
+  } catch (e) { renderSigning(config.signing); toast(e.message); }
+  finally { btn.disabled = false; }
+};
+$("btn-signing-clear").onclick = async () => {
+  if (!confirm("کلید امضا و رمزهایش از این کامپیوتر حذف شود؟ (فایل اصلی keystore شما دست نمی‌خورد)")) return;
+  try { const { signing } = await api("/api/signing/clear", {}); config.signing = signing; $("signWith").value = "debug"; renderSigning(signing); toast("کلید حذف شد"); }
+  catch (e) { toast(e.message); }
+};
+
+// ---------- publishing (x.y.z) ----------
+function nextVersion(part, v) {
+  const [x, y, z] = String(v).split(".").map(Number);
+  return part === "x" ? `${x + 1}.0.0` : part === "y" ? `${x}.${y + 1}.0` : `${x}.${y}.${z + 1}`;
+}
+function renderPublish() {
+  renderLastApk();
+  const v = $("versionName").value.trim();
+  const ok = /^\d+\.\d+\.\d+$/.test(v);
+  $("pub-current").textContent = v || "-";
+  $("pub-server").textContent = $("serverUrl").value.trim() || "(آدرس سرور خالی است)";
+  for (const p of ["x", "y", "z"]) $("next-" + p).textContent = ok ? "→ " + nextVersion(p, v) : "";
+  $("publishKey").placeholder = config.publishKeySet ? "ذخیره شده ✓ (برای عوض کردن، کلید جدید بنویس)" : "همان کلید روی سرور";
+}
+function renderLastApk() {
+  const name = config.lastApk || "";
+  $("last-apk").textContent = name || "(هنوز بیلدی نیست)";
+  $("btn-pub-apk").dataset.none = name ? "" : "1";
+}
+$("btn-pub-apk").onclick = () => {
+  if (!config.lastApk) return toast("هنوز APK‌ای ساخته نشده؛ اول با «کلید خودمان» بیلد بگیر.");
+  const server = $("serverUrl").value.trim();
+  if (confirm(`APK «${config.lastApk}» بدون تغییر نسخه روی سرور ${server} منتشر شود؟
+بازیکن‌های نسخه‌های قبلی (x کمتر) باید آن را نصب کنند.`)) start("publish-apk");
+};
+// ---------- releases on the server ----------
+const fmtDate = (t) => t ? new Date(t * 1000).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" }) : "-";
+const fmtSize = (r) => `${(r.size / 1048576).toFixed(1)} MB${r.files ? ` · ${r.files} فایل` : ""}`;
+function renderReleases(data) {
+  const body = $("releases").querySelector("tbody");
+  body.innerHTML = "";
+  const rows = data.releases || [];
+  $("releases").hidden = !rows.length;
+  $("releases-info").textContent = rows.length
+    ? `سرور ${data.server} · APK فعال: ${data.current?.apk || "ندارد"} · آپدیت داخلی فعال: ${data.current?.web || "ندارد"}`
+    : `روی سرور ${data.server} هنوز نسخه‌ای آپلود نشده.`;
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    if (r.current) tr.className = "current";
+    const cell = (text, cls) => { const td = document.createElement("td"); if (cls) td.className = cls; td.textContent = text; tr.appendChild(td); return td; };
+    cell(r.kind === "apk" ? "APK" : "آپدیت داخلی");
+    const v = cell(r.version + " ", "ltr");
+    if (r.current) { const t = document.createElement("span"); t.className = "tag cur"; t.textContent = "فعلی"; v.appendChild(t); }
+
+    const stCell = cell("");
+    const pubTag = document.createElement("span");
+    pubTag.className = "tag " + (r.published ? "pub" : "draft");
+    pubTag.textContent = r.published ? "منتشر شده" : "پیش‌نویس";
+    stCell.appendChild(pubTag);
+
+    const b = cell("");
+    const tag = document.createElement("span");
+    tag.className = "tag" + (r.buildType === "test" ? " test" : "");
+    tag.textContent = r.buildType === "test" ? "تست" : r.buildType === "release" ? "اصلی" : "نامشخص";
+    b.appendChild(tag);
+
+    cell(fmtDate(r.publishedAt));
+    cell(fmtSize(r), "ltr");
+
+    const actionsTd = document.createElement("td");
+    const wrap = document.createElement("div");
+    wrap.className = "table-actions";
+
+    const pubBtn = document.createElement("button");
+    pubBtn.className = "small" + (r.published ? "" : " primary");
+    pubBtn.textContent = r.published ? "توقف انتشار" : "انتشار";
+    pubBtn.onclick = () => togglePublish(r, !r.published);
+    wrap.appendChild(pubBtn);
+
+    const del = document.createElement("button");
+    del.className = "small danger";
+    del.textContent = "حذف";
+    del.onclick = () => deleteRelease(r);
+    wrap.appendChild(del);
+
+    actionsTd.appendChild(wrap);
+    tr.appendChild(actionsTd);
+    body.appendChild(tr);
+  }
+}
+async function togglePublish(r, publish) {
+  const what = r.kind === "apk" ? `APK ${r.version}` : `آپدیت داخلی ${r.version}`;
+  const msg = publish
+    ? `${what} منتشر شود و برای بازیکن‌ها قابل دریافت باشد؟`
+    : `${what} از حالت انتشار خارج شود؟\n(سرور به نسخهٔ معتبر قبلی برمی‌گردد)`;
+  if (!confirm(msg)) return;
+  try {
+    renderReleases(await api("/api/releases/publish", { kind: r.kind, version: r.version, published: publish }));
+    toast(publish ? `${what} منتشر شد ✓` : `${what} از حالت انتشار خارج شد`);
+  } catch (e) {
+    toast(e.message);
+  }
+}
+async function loadReleases() {
+  const btn = $("btn-releases");
+  try { btn.disabled = true; await save(true); renderReleases(await api("/api/releases")); }
+  catch (e) { $("releases-info").textContent = e.message; $("releases").hidden = true; }
+  finally { btn.disabled = false; }
+}
+async function deleteRelease(r) {
+  const what = r.kind === "apk" ? `APK ${r.version}` : `آپدیت داخلی ${r.version}`;
+  const effect = r.kind === "apk"
+    ? "بازیکن‌ها دیگر پاپ‌آپ نصب این APK را نمی‌بینند و فایلش از سرور پاک می‌شود."
+    : "گوشی‌هایی که آن را گرفته‌اند به کد داخل APK خودشان برمی‌گردند.";
+  if (!confirm(`${what} از سرور حذف شود؟
+${effect}${r.current ? `
+سرور به جدیدترین نسخه‌ی باقی‌مانده برمی‌گردد.` : ""}`)) return;
+  try { renderReleases(await api("/api/releases/delete", { kind: r.kind, version: r.version })); toast(`${what} حذف شد`); }
+  catch (e) { toast(e.message); }
+}
+$("btn-releases").onclick = loadReleases;
+$("versionName").oninput = renderPublish;
+$("serverUrl").oninput = renderPublish;
+const PUBLISH_CONFIRM = {
+  z: (v) => `آپدیت اختیاری ${v} ساخته و روی سرور منتشر شود؟`,
+  y: (v) => `آپدیت اجباری ${v} منتشر شود؟
+همه‌ی بازیکن‌ها تا آپدیت نکنند نمی‌توانند بازی کنند.`,
+  x: (v) => `APK جدید ${v} ساخته و منتشر شود؟
+همه‌ی بازیکن‌ها باید APK جدید نصب کنند. فقط وقتی کد اندرویدی عوض شده این کار را بکن.`,
+};
+for (const p of ["z", "y", "x"]) {
+  $("btn-pub-" + p).onclick = () => {
+    const v = nextVersion(p, $("versionName").value.trim());
+    let msg = PUBLISH_CONFIRM[p](v);
+    msg += `
+
+برای انتشار همیشه با نوع بیلد «اصلی» ساخته می‌شود (تنظیم «نوع بیلد» بعدش سر جایش می‌ماند).`;
+    if (confirm(msg)) start("publish-" + p);
+  };
+}
+$("btn-build-run").onclick = () => start("build-run");
+$("btn-build").onclick = () => start("build");
+$("btn-install").onclick = () => start("install");
+$("btn-stop").onclick = () => api("/api/stop", {}).catch((e) => toast(e.message));
+$("btn-uninstall").onclick = async () => {
+  if (!confirm(`برنامه‌ی ${$("appId").value} و داده‌هایش از گوشی حذف شود؟`)) return;
+  try { await api("/api/uninstall", {}); } catch (e) { toast(e.message); }
+};
+$("btn-artifacts").onclick = () => api("/api/open-artifacts", {});
+$("btn-copy").onclick = () => { navigator.clipboard.writeText($("log").innerText); toast("لاگ کپی شد"); };
+
+// ---------- devices / env ----------
+function chip(id, state, text) { const c = $(id); c.querySelector(".dot").className = "dot " + state; c.lastChild.textContent = text; }
+async function refreshDevices() {
+  try {
+    const { adb, devices } = await api("/api/devices");
+    const sel = $("device"); const want = sel.dataset.want ?? sel.value;
+    sel.innerHTML = '<option value="">اولین گوشی وصل</option>' + devices.map((d) =>
+      `<option value="${d.serial}">${(d.model || d.serial)}${d.state !== "device" ? " (" + d.state + ")" : ""}</option>`).join("");
+    sel.value = devices.some((d) => d.serial === want) ? want : "";
+    delete sel.dataset.want;
+    const ready = devices.filter((d) => d.state === "device");
+    if (!adb) chip("chip-dev", "err", "adb not found");
+    else if (ready.length) chip("chip-dev", "ok", ready.map((d) => d.model || d.serial).join(", "));
+    else if (devices.some((d) => d.state === "unauthorized")) chip("chip-dev", "warn", "Allow USB debugging on phone");
+    else chip("chip-dev", "err", "No device");
+  } catch { chip("chip-dev", "err", "adb error"); }
+}
+$("refresh").onclick = refreshDevices;
+function syncProxyUi() { $("proxyAddress").disabled = !["http", "socks"].includes($("proxyMode").value); }
+$("proxyMode").onchange = syncProxyUi;
+async function checkProxy() {
+  $("proxy-info").textContent = "در حال بررسی…";
+  try {
+    await save(true);
+    const { proxy, gradles, mirrors } = await api("/api/proxy");
+    const p = !proxy ? "پروکسی‌ای پیدا نشد (بدون پروکسی)" : `${proxy.type.toUpperCase()} ${proxy.host}:${proxy.port} ${proxy.up ? "✓ در دسترس" : "✗ در دسترس نیست"}${proxy.auto ? " — خودکار" : ""}`;
+    const g = gradles.length ? `Gradle روی سیستم: ${gradles.map((x) => x.version).join("، ")}` : "Gradle روی سیستم نیست (یک بار دانلود می‌شود)";
+    const okM = mirrors.filter((m) => m.ok).map((m) => new URL(m.url).host + (new URL(m.url).pathname.length > 1 ? new URL(m.url).pathname.replace("/repository", "") : ""));
+    const mm = $("useMirrors").checked ? (okM.length ? `میرورهای فعال: ${okM.join("، ")}` : "هیچ میروری جواب نداد") : "میرورها خاموش";
+    $("proxy-info").innerHTML = "";
+    for (const t of [mm, p, g]) { const d = document.createElement("div"); d.textContent = t; $("proxy-info").appendChild(d); }
+  } catch (e) { $("proxy-info").textContent = e.message; }
+}
+$("btn-proxy").onclick = checkProxy;
+async function loadState() {
+  const s = await api("/api/state");
+  fill(s.config);
+  if (s.config.hasIcon) { iconImg = await loadImage("/icon.png?" + Date.now()).catch(() => null); }
+  renderPreviews();
+  $("ver").textContent = "v" + (s.version || "");
+  syncProxyUi(); checkProxy();
+  chip("chip-jdk", s.jdk && s.jdk.version >= 21 ? "ok" : s.jdk ? "warn" : "err", s.jdk ? `JDK ${s.jdk.version || "?"}` : "JDK not found");
+  chip("chip-sdk", s.sdk ? "ok" : "err", s.sdk ? `SDK ${s.sdk.platforms.map((p) => p.replace("android-", "")).join(", ")}` : "SDK not found");
+  setJob(s.job);
+}
+
+// ---------- log stream ----------
+const STATUS = { idle: "آماده", running: "در حال اجرا…", ok: "تمام شد ✓", failed: "خطا", stopped: "متوقف شد" };
+function setJob(j) {
+  job = j;
+  $("status").textContent = STATUS[j.status] || j.status;
+  $("status").className = "status " + j.status;
+  $("log-head").className = "log-head " + j.status;
+  $("step").textContent = j.status === "running" ? j.step : "";
+  const busy = j.status === "running";
+  for (const id of ["btn-build-run", "btn-build", "btn-install", "btn-uninstall", "btn-save", "btn-pub-z", "btn-pub-y", "btn-pub-x", "btn-pub-apk"]) $(id).disabled = busy;
+  $("btn-stop").disabled = !busy;
+}
+const hasRtl = (s) => /[؀-ۿ]/.test(s);
+function appendLog(e) {
+  const log = $("log");
+  const empty = log.querySelector(".empty"); if (empty) empty.remove();
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  const span = document.createElement("span");
+  span.className = e.kind + (hasRtl(e.text) ? " rtl" : "");
+  const block = e.kind === "step" || hasRtl(e.text);
+  span.textContent = e.text + (block ? "" : "\n");
+  log.appendChild(span);
+  while (log.childNodes.length > 6000) log.firstChild.remove();
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+const es = new EventSource("/api/events");
+es.addEventListener("log", (m) => appendLog(JSON.parse(m.data)));
+es.addEventListener("clear", () => { $("log").innerHTML = ""; });
+es.addEventListener("config", (m) => { const c = JSON.parse(m.data); $("versionCode").value = c.versionCode; $("versionName").value = c.versionName; config = c; renderPublish(); });
+es.addEventListener("job", (m) => {
+  const prev = job.status; const j = JSON.parse(m.data); setJob(j);
+  if (prev === "running" && j.status !== "running") { refreshDevices(); toast(STATUS[j.status]); }
+});
+setInterval(() => {
+  if (job.status === "running" && job.startedAt) {
+    const s = Math.floor((Date.now() - job.startedAt) / 1000);
+    $("elapsed").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+}, 1000);
+
+loadState().then(refreshDevices).catch((e) => toast(e.message));
+setInterval(() => { if (job.status !== "running") refreshDevices(); }, 5000);
+</script>
+</body>
+</html>
