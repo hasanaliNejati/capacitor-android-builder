@@ -17,7 +17,7 @@ const UI = process.env.MB_UI || HERE;
 const ROOT = process.env.MB_ROOT || process.cwd();
 const DATA = process.env.MB_DATA || path.join(ROOT, "android-builder");
 const IS_WIN = process.platform === "win32";
-const VERSION = "1.5.0";
+const VERSION = "1.5.1";
 const CONFIG_FILE = path.join(DATA, "settings.json");
 const ICON_DIR = path.join(DATA, "icon");
 const ANDROID = path.join(ROOT, "android");
@@ -631,11 +631,11 @@ let lastClientAt = Date.now();
 if (process.env.MB_AUTOEXIT) {
   setInterval(() => {
     if (clients.size > 0) { lastClientAt = Date.now(); return; }
-    if (Date.now() - lastClientAt > 12000) {
+    if (Date.now() - lastClientAt > 3000) {
       if (job.status === "running") { job.stopRequested = true; killCurrent(); }
-      setTimeout(() => process.exit(0), 1500);
+      process.exit(0);
     }
-  }, 2000);
+  }, 1000);
 }
 function broadcast(event, data) {
   const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -1066,6 +1066,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/proxy") {
       const [proxy, mirrors] = await Promise.all([resolveProxy(loadConfig()), workingMirrors()]);
       return send(res, 200, { proxy, gradles: cachedGradles(), mirrors });
+    }
+    if (req.method === "POST" && url.pathname === "/api/quit") {
+      send(res, 200, { ok: true });
+      if (job.status === "running") { job.stopRequested = true; killCurrent(); }
+      setTimeout(() => process.exit(0), 100);
+      return;
     }
     if (req.method === "GET" && url.pathname === "/api/devices") return send(res, 200, await listDevices(loadConfig()));
     if (req.method === "GET" && url.pathname === "/api/events") {

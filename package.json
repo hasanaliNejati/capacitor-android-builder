@@ -1,6 +1,6 @@
 {
   "name": "capacitor-android-builder",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Visual and CLI Android Builder for Capacitor apps with Cafe Bazaar, Myket, keystore signing, and live updates.",
   "type": "module",
   "main": "src/server.mjs",

@@ -1,13 +1,15 @@
 //go:build windows
 
-// MenchatBuilder.exe — launcher for the Menchat Android Builder.
-// It must sit in <project>/android-builder/. It starts the builder (server.mjs, embedded here)
+// AppBuilder.exe — launcher for the Capacitor Android Builder.
+// It sits in <project> or <project>/android-builder/. It starts the builder (server.mjs, embedded here)
 // with Node.js in the background and opens it in its own app window (Edge/Chrome --app mode).
-// The background process ends by itself a few seconds after the window is closed.
+// The background process terminates immediately when the window is closed.
 package main
 
 import (
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/http"
@@ -110,14 +112,6 @@ func tail(path string, n int) string {
 }
 
 func main() {
-	// one window at a time
-	name, _ := syscall.UTF16PtrFromString("Local\\CapacitorAndroidBuilder")
-	h, _, err := createMutex.Call(0, 0, uintptr(unsafe.Pointer(name)))
-	if h != 0 && err == syscall.Errno(183) { // ERROR_ALREADY_EXISTS
-		msg("بیلدر اندروید همین حالا باز است.", false)
-		return
-	}
-
 	exe, _ := os.Executable()
 	dir := filepath.Dir(exe)
 	var root, dataDir string
@@ -134,6 +128,20 @@ func main() {
 		fail("این برنامه باید داخل ریشهٔ پروژه یا داخل پوشهٔ android-builder باشد.\n\nپیدا نشد: capacitor.config (json یا ts)")
 	}
 
+	// Compute project-specific hash for mutex, browser profile, and log isolation
+	cleanRoot := strings.ToLower(filepath.Clean(root))
+	hPath := sha256.Sum256([]byte(cleanRoot))
+	projHash := hex.EncodeToString(hPath[:6])
+
+	// One window at a time per project
+	mutexName := fmt.Sprintf("Local\\CapacitorAndroidBuilder_%s", projHash)
+	name, _ := syscall.UTF16PtrFromString(mutexName)
+	h, _, err := createMutex.Call(0, 0, uintptr(unsafe.Pointer(name)))
+	if h != 0 && err == syscall.Errno(183) { // ERROR_ALREADY_EXISTS
+		msg("بیلدر اندروید برای این پروژه همین حالا باز است.", false)
+		return
+	}
+
 	appDir := filepath.Join(os.Getenv("LOCALAPPDATA"), "CapacitorBuilder")
 	uiDir := filepath.Join(appDir, "app")
 	if err := os.MkdirAll(uiDir, 0o755); err != nil {
@@ -148,7 +156,7 @@ func main() {
 	}
 
 	port := freePort()
-	logPath := filepath.Join(appDir, "server.log")
+	logPath := filepath.Join(appDir, fmt.Sprintf("server-%s.log", projHash))
 	logFile, _ := os.Create(logPath)
 	cmd := exec.Command(node, filepath.Join(uiDir, "server.mjs"))
 	cmd.Dir = root
@@ -164,7 +172,7 @@ func main() {
 	exited := make(chan error, 1)
 	go func() { exited <- cmd.Wait() }()
 
-	// wait until the server answers (it may move to the next port if this one got taken)
+	// Wait until the server answers (it may move to the next port if this one got taken)
 	url := ""
 	deadline := time.Now().Add(20 * time.Second)
 	for url == "" && time.Now().Before(deadline) {
@@ -193,17 +201,47 @@ func main() {
 		fail("بیلدر به موقع بالا نیامد:\n\n" + tail(logPath, 1500))
 	}
 
+	var browserCmd *exec.Cmd
 	if b := findBrowser(); b != "" {
-		profile := filepath.Join(appDir, "window")
-		w := exec.Command(b, "--app="+url, "--user-data-dir="+profile, "--window-size=1420,920",
+		profile := filepath.Join(appDir, "profiles", projHash)
+		browserCmd = exec.Command(b, "--app="+url, "--user-data-dir="+profile, "--window-size=1420,920",
 			"--no-first-run", "--no-default-browser-check", "--disable-features=Translate", "--lang=fa")
-		if err := w.Start(); err != nil {
+		if err := browserCmd.Start(); err != nil {
+			browserCmd = nil
 			exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 		}
 	} else {
 		exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 	}
 
-	// The server exits by itself shortly after the window is closed.
-	<-exited
+	shutdownServer := func() {
+		// Clean quit via API
+		c := http.Client{Timeout: 600 * time.Millisecond}
+		_, _ = c.Post(url+"/api/quit", "text/plain", nil)
+
+		select {
+		case <-exited:
+			return
+		case <-time.After(800 * time.Millisecond):
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+		}
+	}
+
+	if browserCmd != nil {
+		browserDone := make(chan error, 1)
+		go func() { browserDone <- browserCmd.Wait() }()
+
+		select {
+		case <-browserDone:
+			// Browser window was closed by the user - shut down immediately
+			shutdownServer()
+		case <-exited:
+			// Server exited on its own
+		}
+	} else {
+		// Default browser opened via rundll32; wait for server autoexit
+		<-exited
+	}
 }
