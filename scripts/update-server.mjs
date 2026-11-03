@@ -34,18 +34,37 @@ export function fail(message) {
 
 export const sha256 = (data) => crypto.createHash("sha256").update(data).digest("hex");
 
+export function getAppId() {
+  try {
+    const capPath = path.join(ROOT, "capacitor.config.json");
+    if (fs.existsSync(capPath)) {
+      const cap = JSON.parse(fs.readFileSync(capPath, "utf8"));
+      if (cap.appId) return cap.appId;
+    }
+  } catch {}
+  return "";
+}
+
 export function connect() {
-  const server = (arg("--server") || readEnv(".env.android").VITE_NAKAMA_HTTP_URL || "").replace(/\/$/, "");
+  const envAndroid = readEnv(".env.android");
+  const server = (arg("--server") || envAndroid.VITE_UPDATE_SERVER_URL || envAndroid.VITE_NAKAMA_HTTP_URL || "").replace(/\/$/, "");
   const key = process.env.APP_UPDATE_PUBLISH_KEY || readEnv(".env.publish.local").APP_UPDATE_PUBLISH_KEY;
-  if (!/^https?:\/\//.test(server)) fail("Server address not found. Pass --server http://host:port or set VITE_NAKAMA_HTTP_URL in .env.android.");
+  const appId = arg("--app") || getAppId();
+  if (!/^https?:\/\//.test(server)) fail("Server address not found. Pass --server http://host:port or set VITE_UPDATE_SERVER_URL / VITE_NAKAMA_HTTP_URL in .env.android.");
   if (!key) fail("Publish key not found. Put APP_UPDATE_PUBLISH_KEY=... in .env.publish.local.");
+
+  const defaultHeaders = { "X-Publish-Key": key };
+  if (appId) {
+    defaultHeaders["X-App-Id"] = appId;
+  }
 
   async function call(method, urlPath, body, contentType = "application/json") {
     for (let attempt = 1; ; attempt++) {
       try {
+        const headers = { ...defaultHeaders, "Content-Type": contentType };
         const res = await fetch(server + urlPath, {
           method,
-          headers: { "X-Publish-Key": key, "Content-Type": contentType },
+          headers,
           body,
           signal: AbortSignal.timeout(60000),
         });

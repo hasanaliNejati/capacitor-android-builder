@@ -68,6 +68,12 @@ function readEnvUrl() {
     return m ? m[1].trim() : "";
   } catch { return ""; }
 }
+function readUpdateServerUrl() {
+  try {
+    const m = fs.readFileSync(path.join(ROOT, ".env.android"), "utf8").match(/^VITE_UPDATE_SERVER_URL=(.*)$/m);
+    return m ? m[1].trim() : "";
+  } catch { return ""; }
+}
 function readCapacitorConfig() {
   const jsonPath = path.join(ROOT, "capacitor.config.json");
   if (fs.existsSync(jsonPath)) return readJson(jsonPath, {});
@@ -97,6 +103,7 @@ function defaults() {
     lastBuiltCode: 0,
     orientation: "portrait",
     serverUrl: readEnvUrl(),
+    updateServerUrl: readUpdateServerUrl(),
     buildType: "test",
     iconBackground: "#073773",
     iconScale: 100,
@@ -677,11 +684,18 @@ function applyWebConfig(cfg) {
         .replace(/appName\s*:\s*["'`]([^"'`]+)["'`]/, `appName: '${cfg.appName}'`));
     }
   }
-  if (cfg.serverUrl) {
+  if (cfg.serverUrl !== undefined) {
     const envFile = path.join(ROOT, ".env.android");
     let s = exists(envFile) ? fs.readFileSync(envFile, "utf8") : "";
     if (/^VITE_NAKAMA_HTTP_URL=.*$/m.test(s)) s = s.replace(/^VITE_NAKAMA_HTTP_URL=.*$/m, `VITE_NAKAMA_HTTP_URL=${cfg.serverUrl}`);
     else s = `VITE_NAKAMA_HTTP_URL=${cfg.serverUrl}\n` + s;
+    fs.writeFileSync(envFile, s);
+  }
+  if (cfg.updateServerUrl !== undefined) {
+    const envFile = path.join(ROOT, ".env.android");
+    let s = exists(envFile) ? fs.readFileSync(envFile, "utf8") : "";
+    if (/^VITE_UPDATE_SERVER_URL=.*$/m.test(s)) s = s.replace(/^VITE_UPDATE_SERVER_URL=.*$/m, `VITE_UPDATE_SERVER_URL=${cfg.updateServerUrl}`);
+    else s = `VITE_UPDATE_SERVER_URL=${cfg.updateServerUrl}\n` + s;
     fs.writeFileSync(envFile, s);
   }
   // test → Custom Connect menu on the connecting screen; release → straight to the main server.
@@ -796,11 +810,12 @@ async function runJob(action) {
     const adb = adbPath(sdk);
     const env = toolEnv(jdk, sdk);
     let apk = "";
+    const targetUpdateServer = (cfg.updateServerUrl || cfg.serverUrl || "").replace(/\/$/, "");
     if (publishing) {
       if (!readPublishKey()) throw new Error("کلید انتشار وارد نشده. در بخش «انتشار برای بازیکن‌ها» همان APP_UPDATE_PUBLISH_KEY سرور را وارد کن.");
-      if (!/^https?:\/\//.test(cfg.serverUrl || "")) throw new Error("آدرس سرور خالی است؛ آپدیت روی همین سرور منتشر می‌شود.");
+      if (!/^https?:\/\//.test(targetUpdateServer)) throw new Error("آدرس سرور آپدیت خالی است؛ لطفاً در بخش تنظیمات سرور یا سرور آپدیت آدرس را وارد کنید.");
       log("نوع بیلد برای انتشار: اصلی (release)");
-      log(`انتشار روی سرور ${cfg.serverUrl}`);
+      log(`انتشار روی سرور آپدیت: ${targetUpdateServer}`);
     }
 
     // The last APK built here, published as it is (its version is not changed).
@@ -817,7 +832,7 @@ async function runJob(action) {
         throw new Error("این APK با کلید امضای ثبت‌شده امضا نشده (احتمالاً با کلید تست). «امضای APK» را روی «کلید خودمان» بگذار و دوباره بیلد بگیر.");
       } else log(`امضا: کلید خودمان ✓ (${sig.alias})`, "ok");
       step("انتشار APK روی سرور");
-      await runPublish("publish-apk.mjs", ["--apk", apk, "--server", cfg.serverUrl], env);
+      await runPublish("publish-apk.mjs", ["--apk", apk, "--server", targetUpdateServer], env);
       log("APK منتشر شد. بازیکن‌های نسخه‌های قبلی (x کمتر) باید آن را نصب کنند.", "ok");
       setJob({ status: "ok", step: "", finishedAt: Date.now() });
       return;
@@ -831,7 +846,7 @@ async function runJob(action) {
       if (needsInstall()) { step("نصب پکیج‌ها (npm install)"); await run(npm, ["install"], { env }); }
       bump(action.slice(-1));
       step("بیلد و انتشار آپدیت داخلی");
-      await runPublish("publish-update.mjs", [], env);
+      await runPublish("publish-update.mjs", ["--server", targetUpdateServer], env);
       log(`آپدیت ${cfg.versionName} منتشر شد. بازیکن‌ها دفعه‌ی بعد که بازی را باز کنند پاپ‌آپ را می‌بینند.`, "ok");
       setJob({ status: "ok", step: "", finishedAt: Date.now() });
       return;
@@ -1045,7 +1060,7 @@ function readBody(req) {
     req.on("error", reject);
   });
 }
-const ALLOWED = ["useMirrors", "appName", "appId", "versionCode", "autoIncrement", "orientation", "serverUrl", "buildType", "iconBackground", "iconScale", "device", "proxyMode", "proxyAddress", "jdkPath", "sdkPath", "stores", "signWith", "bazaarRsaKey", "myketRsaKey"];
+const ALLOWED = ["useMirrors", "appName", "appId", "versionCode", "autoIncrement", "orientation", "serverUrl", "updateServerUrl", "buildType", "iconBackground", "iconScale", "device", "proxyMode", "proxyAddress", "jdkPath", "sdkPath", "stores", "signWith", "bazaarRsaKey", "myketRsaKey"];
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
@@ -1134,8 +1149,9 @@ const server = http.createServer(async (req, res) => {
       const cfg = loadConfig();
       const key = readPublishKey();
       if (!key) return send(res, 400, { error: "کلید انتشار وارد نشده. در بخش «انتشار برای بازیکن‌ها» واردش کن." });
-      if (!/^https?:\/\//.test(cfg.serverUrl || "")) return send(res, 400, { error: "آدرس سرور خالی است." });
-      const base = cfg.serverUrl.replace(/\/$/, "");
+      const targetServer = (cfg.updateServerUrl || cfg.serverUrl || "").replace(/\/$/, "");
+      if (!/^https?:\/\//.test(targetServer)) return send(res, 400, { error: "آدرس سرور آپدیت خالی است." });
+      const base = targetServer;
       const isPost = req.method === "POST";
       const isPublish = url.pathname === "/api/releases/publish";
       const body = isPost ? await readBody(req) : null;
@@ -1143,7 +1159,7 @@ const server = http.createServer(async (req, res) => {
         const endpoint = !isPost ? "/app-update/admin/releases" : isPublish ? "/app-update/admin/publish" : "/app-update/admin/delete";
         const r = await fetch(base + endpoint, {
           method: isPost ? "POST" : "GET",
-          headers: { "X-Publish-Key": key, "Content-Type": "application/json" },
+          headers: { "X-Publish-Key": key, "X-App-Id": cfg.appId || "", "Content-Type": "application/json" },
           body: isPost ? JSON.stringify(isPublish ? { kind: body.kind, version: body.version, published: !!body.published } : { kind: body.kind, version: body.version }) : undefined,
           signal: AbortSignal.timeout(20000),
         });
