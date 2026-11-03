@@ -17,7 +17,7 @@ const UI = process.env.MB_UI || HERE;
 const ROOT = process.env.MB_ROOT || process.cwd();
 const DATA = process.env.MB_DATA || path.join(ROOT, "android-builder");
 const IS_WIN = process.platform === "win32";
-const VERSION = "1.7.0";
+const VERSION = "1.7.1";
 const CONFIG_FILE = path.join(DATA, "settings.json");
 const ICON_DIR = path.join(DATA, "icon");
 const ANDROID = path.join(ROOT, "android");
