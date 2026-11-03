@@ -17,7 +17,7 @@ const UI = process.env.MB_UI || HERE;
 const ROOT = process.env.MB_ROOT || process.cwd();
 const DATA = process.env.MB_DATA || path.join(ROOT, "android-builder");
 const IS_WIN = process.platform === "win32";
-const VERSION = "1.6.0";
+const VERSION = "1.7.0";
 const CONFIG_FILE = path.join(DATA, "settings.json");
 const ICON_DIR = path.join(DATA, "icon");
 const ANDROID = path.join(ROOT, "android");
@@ -119,6 +119,8 @@ function defaults() {
     directApkDownload: false,
     bazaarRsaKey: "",
     myketRsaKey: "",
+    publishTargetServer: "",
+    dualPublish: false,
   };
 }
 function loadConfig() {
@@ -810,12 +812,19 @@ async function runJob(action) {
     const adb = adbPath(sdk);
     const env = toolEnv(jdk, sdk);
     let apk = "";
-    const targetUpdateServer = (cfg.updateServerUrl || cfg.serverUrl || "").replace(/\/$/, "");
+    const configuredUpdateServer = (cfg.updateServerUrl || cfg.serverUrl || "").replace(/\/$/, "");
+    const primaryUploadServer = (cfg.publishTargetServer ? cfg.publishTargetServer.trim() : "").replace(/\/$/, "") || configuredUpdateServer;
+    const isDual = !!cfg.dualPublish && !!primaryUploadServer && !!configuredUpdateServer && primaryUploadServer !== configuredUpdateServer;
+
     if (publishing) {
       if (!readPublishKey()) throw new Error("کلید انتشار وارد نشده. در بخش «انتشار برای بازیکن‌ها» همان APP_UPDATE_PUBLISH_KEY سرور را وارد کن.");
-      if (!/^https?:\/\//.test(targetUpdateServer)) throw new Error("آدرس سرور آپدیت خالی است؛ لطفاً در بخش تنظیمات سرور یا سرور آپدیت آدرس را وارد کنید.");
+      if (!/^https?:\/\//.test(primaryUploadServer)) throw new Error("آدرس سرور مقصد آپلود نامعتبر یا خالی است.");
       log("نوع بیلد برای انتشار: اصلی (release)");
-      log(`انتشار روی سرور آپدیت: ${targetUpdateServer}`);
+      log(`آدرس سرور آپدیت کامپایل‌شده در اپ: ${configuredUpdateServer || "(خالی)"}`);
+      log(`سرور مقصد آپلود: ${primaryUploadServer}`);
+      if (isDual) {
+        log(`انتشار همزمان (Dual-Publish) فعال است: فایل‌ها روی سرور دوم (${configuredUpdateServer}) نیز آپلود خواهند شد.`);
+      }
     }
 
     // The last APK built here, published as it is (its version is not changed).
@@ -831,8 +840,12 @@ async function runJob(action) {
       else if (cert !== sig.sha256.replace(/:/g, "").toLowerCase()) {
         throw new Error("این APK با کلید امضای ثبت‌شده امضا نشده (احتمالاً با کلید تست). «امضای APK» را روی «کلید خودمان» بگذار و دوباره بیلد بگیر.");
       } else log(`امضا: کلید خودمان ✓ (${sig.alias})`, "ok");
-      step("انتشار APK روی سرور");
-      await runPublish("publish-apk.mjs", ["--apk", apk, "--server", targetUpdateServer], env);
+      step(`انتشار APK روی سرور ${primaryUploadServer}`);
+      await runPublish("publish-apk.mjs", ["--apk", apk, "--server", primaryUploadServer], env);
+      if (isDual) {
+        step(`انتشار نسخه دوم APK روی سرور ${configuredUpdateServer}`);
+        await runPublish("publish-apk.mjs", ["--apk", apk, "--server", configuredUpdateServer], env);
+      }
       log("APK منتشر شد. بازیکن‌های نسخه‌های قبلی (x کمتر) باید آن را نصب کنند.", "ok");
       setJob({ status: "ok", step: "", finishedAt: Date.now() });
       return;
@@ -845,8 +858,12 @@ async function runJob(action) {
       applyWebConfig(cfg);
       if (needsInstall()) { step("نصب پکیج‌ها (npm install)"); await run(npm, ["install"], { env }); }
       bump(action.slice(-1));
-      step("بیلد و انتشار آپدیت داخلی");
-      await runPublish("publish-update.mjs", ["--server", targetUpdateServer], env);
+      step(`بیلد و انتشار آپدیت داخلی روی ${primaryUploadServer}`);
+      await runPublish("publish-update.mjs", ["--server", primaryUploadServer], env);
+      if (isDual) {
+        step(`انتشار نسخه دوم روی ${configuredUpdateServer} بدون بیلد مجدد`);
+        await runPublish("publish-update.mjs", ["--skip-build", "--server", configuredUpdateServer], env);
+      }
       log(`آپدیت ${cfg.versionName} منتشر شد. بازیکن‌ها دفعه‌ی بعد که بازی را باز کنند پاپ‌آپ را می‌بینند.`, "ok");
       setJob({ status: "ok", step: "", finishedAt: Date.now() });
       return;
@@ -1060,7 +1077,7 @@ function readBody(req) {
     req.on("error", reject);
   });
 }
-const ALLOWED = ["useMirrors", "appName", "appId", "versionCode", "autoIncrement", "orientation", "serverUrl", "updateServerUrl", "buildType", "iconBackground", "iconScale", "device", "proxyMode", "proxyAddress", "jdkPath", "sdkPath", "stores", "signWith", "bazaarRsaKey", "myketRsaKey"];
+const ALLOWED = ["useMirrors", "appName", "appId", "versionCode", "autoIncrement", "orientation", "serverUrl", "updateServerUrl", "publishTargetServer", "dualPublish", "buildType", "iconBackground", "iconScale", "device", "proxyMode", "proxyAddress", "jdkPath", "sdkPath", "stores", "signWith", "bazaarRsaKey", "myketRsaKey"];
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
@@ -1149,7 +1166,7 @@ const server = http.createServer(async (req, res) => {
       const cfg = loadConfig();
       const key = readPublishKey();
       if (!key) return send(res, 400, { error: "کلید انتشار وارد نشده. در بخش «انتشار برای بازیکن‌ها» واردش کن." });
-      const targetServer = (cfg.updateServerUrl || cfg.serverUrl || "").replace(/\/$/, "");
+      const targetServer = (cfg.publishTargetServer || cfg.updateServerUrl || cfg.serverUrl || "").replace(/\/$/, "");
       if (!/^https?:\/\//.test(targetServer)) return send(res, 400, { error: "آدرس سرور آپدیت خالی است." });
       const base = targetServer;
       const isPost = req.method === "POST";

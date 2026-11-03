@@ -288,6 +288,18 @@
       <label style="margin-top:10px">کلید انتشار (APP_UPDATE_PUBLISH_KEY سرور)
         <input type="password" id="publishKey" class="ltr" autocomplete="off" spellcheck="false" />
       </label>
+      <details style="margin-top:12px;background:#f8fafc;padding:10px 14px;border-radius:8px;border:1px solid #e2e8f0">
+        <summary style="cursor:pointer;font-weight:600;color:#0f172a">تنظیمات مهاجرت سرور و مقصد آپلود (اختیاری)</summary>
+        <label style="margin-top:10px">سرور مقصد آپلود (خالی = همان سرور آپدیت)
+          <input type="text" id="publishTargetServer" class="ltr" spellcheck="false" placeholder="http://old-server:7350" />
+        </label>
+        <label class="check" style="margin-top:8px">
+          <input type="checkbox" id="dualPublish" /> انتشار همزمان روی هر دو سرور (سرور مقصد + سرور آپدیت جدید)
+        </label>
+        <div class="hint" style="margin-top:6px;line-height:1.6">
+          💡 <b>برای انتقال بازیکن‌ها به سرور جدید:</b> آدرس سرور جدید را در کارت بالای صفحه وارد کنید (تا در کد بازی قرار گیرد)، و آدرس سرور قدیمی را اینجا بنویسید (تا آپدیت روی سرور قبلی قرار بگیرد و گوشی‌های فعلی آن را دریافت کرده و به سرور جدید منتقل شوند). با تیک «انتشار همزمان»، فایل‌ها بدون بیلد اضافه روی سرور جدید هم ذخیره می‌شوند.
+        </div>
+      </details>
       <div class="publish">
         <button id="btn-pub-z">آپدیت اختیاری (z) <b id="next-z"></b></button>
         <div class="hint">تغییر کوچک. بازیکن پاپ‌آپ «بروزرسانی / بعداً» می‌بیند. بدون APK.</div>
@@ -342,7 +354,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const FIELDS = ["useMirrors", "appName", "appId", "versionName", "versionCode", "autoIncrement", "orientation", "serverUrl", "updateServerUrl", "buildType", "directApkDownload", "iconBackground", "iconScale", "device", "proxyMode", "proxyAddress", "jdkPath", "sdkPath", "signWith", "bazaarRsaKey", "myketRsaKey"];
+const FIELDS = ["useMirrors", "appName", "appId", "versionName", "versionCode", "autoIncrement", "orientation", "serverUrl", "updateServerUrl", "publishTargetServer", "dualPublish", "buildType", "directApkDownload", "iconBackground", "iconScale", "device", "proxyMode", "proxyAddress", "jdkPath", "sdkPath", "signWith", "bazaarRsaKey", "myketRsaKey"];
 const STORES = ["bazaar", "myket"];
 let config = {};
 let iconImg = null;       // HTMLImageElement of the source
@@ -521,8 +533,13 @@ function renderPublish() {
   const v = $("versionName").value.trim();
   const ok = /^\d+\.\d+\.\d+$/.test(v);
   $("pub-current").textContent = v || "-";
-  const targetServer = $("updateServerUrl").value.trim() || $("serverUrl").value.trim();
-  $("pub-server").textContent = targetServer || "(آدرس سرور خالی است)";
+  const updateServer = $("updateServerUrl").value.trim() || $("serverUrl").value.trim();
+  const targetServer = $("publishTargetServer").value.trim() || updateServer;
+  let serverText = targetServer;
+  if ($("dualPublish").checked && $("publishTargetServer").value.trim() && updateServer !== targetServer) {
+    serverText = `${targetServer} و ${updateServer} (همزمان)`;
+  }
+  $("pub-server").textContent = serverText || "(آدرس سرور خالی است)";
   for (const p of ["x", "y", "z"]) $("next-" + p).textContent = ok ? "→ " + nextVersion(p, v) : "";
   $("publishKey").placeholder = config.publishKeySet ? "ذخیره شده ✓ (برای عوض کردن، کلید جدید بنویس)" : "همان کلید روی سرور";
 }
@@ -533,7 +550,8 @@ function renderLastApk() {
 }
 $("btn-pub-apk").onclick = () => {
   if (!config.lastApk) return toast("هنوز APK‌ای ساخته نشده؛ اول با «کلید خودمان» بیلد بگیر.");
-  const server = $("updateServerUrl").value.trim() || $("serverUrl").value.trim();
+  const updateServer = $("updateServerUrl").value.trim() || $("serverUrl").value.trim();
+  const server = $("publishTargetServer").value.trim() || updateServer;
   if (confirm(`APK «${config.lastApk}» بدون تغییر نسخه روی سرور ${server} منتشر شود؟
 بازیکن‌های نسخه‌های قبلی (x کمتر) باید آن را نصب کنند.`)) start("publish-apk");
 };
@@ -626,6 +644,8 @@ $("btn-releases").onclick = loadReleases;
 $("versionName").oninput = renderPublish;
 $("serverUrl").oninput = renderPublish;
 $("updateServerUrl").oninput = renderPublish;
+$("publishTargetServer").oninput = renderPublish;
+$("dualPublish").onchange = renderPublish;
 const PUBLISH_CONFIRM = {
   z: (v) => `آپدیت اختیاری ${v} ساخته و روی سرور منتشر شود؟`,
   y: (v) => `آپدیت اجباری ${v} منتشر شود؟
