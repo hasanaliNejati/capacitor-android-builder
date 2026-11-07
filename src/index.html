@@ -318,7 +318,7 @@
         <button class="small" id="btn-releases">بارگذاری فهرست</button>
       </div>
       <table class="releases" id="releases" hidden>
-        <thead><tr><th>نوع</th><th>نسخه</th><th>وضعیت انتشار</th><th>بیلد</th><th>تاریخ</th><th>حجم</th><th>عملیات</th></tr></thead>
+        <thead><tr><th>نوع</th><th>نسخه</th><th>وضعیت انتشار</th><th>بیلد</th><th>کلید نیتیو</th><th>کلید وب</th><th>تاریخ</th><th>حجم</th><th>عملیات</th></tr></thead>
         <tbody></tbody>
       </table>
       <div class="hint" style="margin-top:8px">با حذف یک نسخه، سرور به جدیدترین نسخه‌ی باقی‌مانده برمی‌گردد. گوشی‌هایی که آپدیت داخلیِ حذف‌شده را گرفته‌اند خودشان به کد داخل APKشان برمی‌گردند. بعد از حذف، نسخه‌ی package.json را هم اگر لازم است پایین بیاور.</div>
@@ -586,6 +586,16 @@ function renderReleases(data) {
     tag.textContent = r.buildType === "test" ? "تست" : r.buildType === "release" ? "اصلی" : "نامشخص";
     b.appendChild(tag);
 
+    const nk = cell("", "ltr");
+    if (r.nativeKey) {
+      const t = document.createElement("span");
+      const match = data.localNativeKey ? r.nativeKey === data.localNativeKey : null;
+      t.className = "tag" + (match === true ? " pub" : match === false ? " test" : "");
+      t.textContent = String(r.nativeKey).slice(0, 8);
+      t.title = r.nativeKey + (match === true ? " — مطابق کد فعلی پروژه" : match === false ? " — با کد اندرویدی فعلی پروژه فرق دارد (ناسازگار)" : "");
+      nk.appendChild(t);
+    } else nk.textContent = "-";
+    cell(r.build ? String(r.build).slice(0, 8) : "-", "ltr").title = r.build || "سرور کلید وب این نسخه را برنگرداند";
     cell(fmtDate(r.publishedAt));
     cell(fmtSize(r), "ltr");
 

@@ -61,7 +61,7 @@ async function main() {
   }
   if (!fs.existsSync(path.join(DIST, "index.html"))) fail("dist/index.html not found. Build first.");
 
-  const { version, nativeKey, buildType, files } = writeBundleInfo();
+  const { version, nativeKey, buildType, build, files } = writeBundleInfo();
   if (buildType !== wantType) {
     fail(buildType === "test"
       ? "dist/ is a TEST build (VITE_BUILD_TYPE=test). Rebuild without --skip-build, or pass --test to publish it to a test server."
@@ -69,10 +69,10 @@ async function main() {
   }
   const infoData = fs.readFileSync(path.join(DIST, INFO_FILE));
   const all = [...files, { name: INFO_FILE, hash: sha256(infoData), size: infoData.length }];
-  console.log(`Live update ${version} · ${buildType} · native ${nativeKey} · ${all.length} files · server ${server}`);
+  console.log(`Live update ${version} · ${buildType} · native ${nativeKey} · web ${build} · ${all.length} files · server ${server}`);
 
   await uploadMissing(all.map((f) => ({ ...f, read: () => fs.readFileSync(path.join(DIST, f.name)) })));
-  await publish("/app-update/publish/release", { version, nativeKey, buildType, files: all.map(({ name, hash, size }) => ({ name, hash, size })) });
+  await publish("/app-update/publish/release", { version, nativeKey, buildType, build, files: all.map(({ name, hash, size }) => ({ name, hash, size })) });
   published = true;
   console.log(`\n✔ Published live update ${version}. Players get the popup next time they open the game.`);
 }

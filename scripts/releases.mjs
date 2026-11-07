@@ -14,11 +14,11 @@ import { connect, fail } from "./update-server.mjs";
 function show(data) {
   const rows = data.releases || [];
   if (!rows.length) return console.log("No releases on this server.");
-  console.log("kind  version   type     current  published            native            size");
+  console.log("kind  version   type     current  published            native            web      size");
   for (const r of rows) {
     const when = r.publishedAt ? new Date(r.publishedAt * 1000).toISOString().slice(0, 16).replace("T", " ") : "-";
     const size = `${(r.size / 1048576).toFixed(1)} MB${r.files ? ` (${r.files} files)` : ""}`;
-    console.log(`${r.kind.padEnd(5)} ${r.version.padEnd(9)} ${(r.buildType || "release?").padEnd(8)} ${(r.current ? "yes" : "").padEnd(8)} ${when.padEnd(20)} ${r.nativeKey.padEnd(17)} ${size}`);
+    console.log(`${r.kind.padEnd(5)} ${r.version.padEnd(9)} ${(r.buildType || "release?").padEnd(8)} ${(r.current ? "yes" : "").padEnd(8)} ${when.padEnd(20)} ${r.nativeKey.padEnd(17)} ${String(r.build || "-").slice(0, 8).padEnd(8)} ${size}`);
   }
 }
 

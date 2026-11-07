@@ -39,11 +39,8 @@ function getFontPath() {
 }
 
 function getFaviconPath() {
-  return resolveAsset([
-    path.join(DATA, "icon", "source.png"),
-    path.join(ROOT, "public", "assets", "dice.png"),
-    path.join(PKG_ROOT, "src", "assets", "icon.png"),
-  ]);
+  // The builder's own dice icon, not the project's app icon.
+  return resolveAsset([path.join(PKG_ROOT, "src", "assets", "icon.png")]);
 }
 
 function getAppSlug(cfg) {
@@ -153,7 +150,7 @@ function normalizeStores(list) {
 }
 const storeNames = (stores) => stores.map((s) => STORES[s].name).join(" و ");
 /** APK of {store} in artifacts/ for this version. */
-const apkName = (cfg, store) => `${getAppSlug(cfg)}-${store}-${cfg.versionName}-${cfg.versionCode}${isTestBuild(cfg) ? "-test" : ""}.apk`;
+const apkName = (cfg, store, nKey = "", wKey = "") => `${getAppSlug(cfg)}-${store}-${cfg.versionName}-${cfg.versionCode}${nKey ? `-n${String(nKey).slice(0, 8)}` : ""}${wKey ? `-w${String(wKey).slice(0, 8)}` : ""}${isTestBuild(cfg) ? "-test" : ""}.apk`;
 
 // ---------- test builds: own app ID and name ----------
 // A test build (Custom Connect menu, test tools) installs next to the real
@@ -900,9 +897,6 @@ async function runJob(action) {
         broadcast("config", loadConfig());
         log(`versionCode خودکار → ${cfg.versionCode}`);
       }
-      // The first store's APK is the one installed on the phone / published.
-      apk = path.join(ARTIFACTS, apkName(cfg, cfg.stores[0]));
-
       step("اعمال تنظیمات وب");
       applyWebConfig(cfg);
 
@@ -913,6 +907,10 @@ async function runJob(action) {
       if (!exists(path.join(ANDROID, IS_WIN ? "gradlew.bat" : "gradlew"))) {
         step("بیلد وب");
         await run(npm, ["run", "build", "--", "--mode", "android"], { env });
+      // Web build hash from dist/bundle.json (changes with every web code change).
+      const webKey = String(readJson(path.join(ROOT, "dist", "bundle.json"), {}).build || "");
+      // The first store's APK is the one installed on the phone / published.
+      apk = path.join(ARTIFACTS, apkName(cfg, cfg.stores[0], key, webKey));
         step("ساخت پروژه اندروید (cap add)");
         await run(npx, ["cap", "add", "android"], { env });
       }
@@ -953,7 +951,7 @@ async function runJob(action) {
         const kind = release ? "release" : "debug";
         const built = path.join(ANDROID, "app", "build", "outputs", "apk", st, kind, `app-${st}-${kind}.apk`);
         if (!exists(built)) throw new Error(`فایل APK ${STORES[st].name} ساخته نشد`);
-        const out = path.join(ARTIFACTS, apkName(cfg, st));
+        const out = path.join(ARTIFACTS, apkName(cfg, st, key, webKey));
         fs.copyFileSync(built, out);
         fs.copyFileSync(built, path.join(ARTIFACTS, `${getAppSlug(cfg)}-${st}-${kind}.apk`));
         log(`APK ${STORES[st].name} آماده شد: artifacts\\${path.basename(out)} (${(fs.statSync(out).size / 1048576).toFixed(1)} MB)`, "ok");
@@ -1186,7 +1184,7 @@ const server = http.createServer(async (req, res) => {
         if (!r.ok) return send(res, 400, { error: data.error || `خطای سرور (${r.status})` });
         if (url.pathname === "/api/releases/delete") log(`از سرور حذف شد: ${body.kind === "apk" ? "APK" : "آپدیت داخلی"} ${body.version}`, "warn");
         if (isPublish) log(`وضعیت انتشار تغییر کرد: ${body.kind === "apk" ? "APK" : "آپدیت داخلی"} ${body.version} ← ${body.published ? "منتشر شده" : "پیش‌نویس (غیرفعال)"}`, body.published ? "ok" : "warn");
-        return send(res, 200, { ...data, server: base });
+        return send(res, 200, { ...data, server: base, localNativeKey: await nativeKey().catch(() => "") });
       } catch (e) {
         return send(res, 400, { error: `سرور ${base} در دسترس نیست (${e.message}).` });
       }

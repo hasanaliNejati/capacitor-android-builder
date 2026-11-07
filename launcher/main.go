@@ -8,7 +8,7 @@ package main
 
 import (
 	"crypto/sha256"
-	_ "embed"
+	"embed"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -27,6 +27,17 @@ var serverJS []byte
 
 //go:embed index.html
 var indexHTML []byte
+
+// Publish scripts (copied from ../scripts by build.cmd/build.sh); extracted next to app/ so
+// the server finds them at <PKG_ROOT>/scripts even when the project has no scripts folder.
+//
+//go:embed scripts/*.mjs
+var scriptsFS embed.FS
+
+// Dice favicon and font (copied from ../src/assets by build.cmd/build.sh).
+//
+//go:embed assets/*
+var assetsFS embed.FS
 
 var (
 	user32      = syscall.NewLazyDLL("user32.dll")
@@ -149,6 +160,25 @@ func main() {
 	}
 	_ = os.WriteFile(filepath.Join(uiDir, "server.mjs"), serverJS, 0o644)
 	_ = os.WriteFile(filepath.Join(uiDir, "index.html"), indexHTML, 0o644)
+	scriptsDir := filepath.Join(appDir, "scripts")
+	_ = os.MkdirAll(scriptsDir, 0o755)
+	if entries, err := scriptsFS.ReadDir("scripts"); err == nil {
+		for _, e := range entries {
+			if data, err := scriptsFS.ReadFile("scripts/" + e.Name()); err == nil {
+				_ = os.WriteFile(filepath.Join(scriptsDir, e.Name()), data, 0o644)
+			}
+		}
+	}
+
+	assetsDir := filepath.Join(appDir, "src", "assets")
+	_ = os.MkdirAll(assetsDir, 0o755)
+	if entries, err := assetsFS.ReadDir("assets"); err == nil {
+		for _, e := range entries {
+			if data, err := assetsFS.ReadFile("assets/" + e.Name()); err == nil {
+				_ = os.WriteFile(filepath.Join(assetsDir, e.Name()), data, 0o644)
+			}
+		}
+	}
 
 	node := findNode()
 	if node == "" {

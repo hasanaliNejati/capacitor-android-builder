@@ -53,7 +53,7 @@ async function main() {
   const apk = fs.readFileSync(apkPath);
   const stamp = readZipEntry(apk, "assets/public/bundle.json");
   if (!stamp) fail(`${path.basename(apkPath)} has no version stamp (assets/public/bundle.json). Rebuild it with the current code.`);
-  const { version, nativeKey, buildType } = JSON.parse(stamp.toString("utf8"));
+  const { version, nativeKey, buildType, build } = JSON.parse(stamp.toString("utf8"));
   const wantType = process.argv.includes("--test") ? "test" : "release";
   if (!buildType) fail(`${path.basename(apkPath)} was built before build types were stamped; rebuild it with the current code.`);
   if (buildType !== wantType) {
@@ -67,9 +67,9 @@ async function main() {
 
   const { server, uploadMissing, publish } = connect();
   const hash = sha256(apk);
-  console.log(`APK ${path.basename(apkPath)} · version ${version} · ${buildType} · native ${nativeKey} · ${(apk.length / 1048576).toFixed(1)} MB · server ${server}`);
+  console.log(`APK ${path.basename(apkPath)} · version ${version} · ${buildType} · native ${nativeKey} · web ${build || "?"} · ${(apk.length / 1048576).toFixed(1)} MB · server ${server}`);
   await uploadMissing([{ name: path.basename(apkPath), hash, size: apk.length, read: () => apk }]);
-  await publish("/app-update/publish/apk", { version, nativeKey, buildType, hash });
+  await publish("/app-update/publish/apk", { version, nativeKey, buildType, build, hash });
   console.log(`\n✔ Published APK ${version}. Players on older versions must install it before playing.`);
 }
 
