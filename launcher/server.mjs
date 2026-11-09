@@ -120,8 +120,35 @@ function defaults() {
     dualPublish: false,
   };
 }
+// Machine-specific settings (JDK / SDK paths) live in the user's profile, not in the
+// project, so a project opened on another computer never inherits this PC's paths.
+const MACHINE_KEYS = ["jdkPath", "sdkPath"];
+const MACHINE_FILE = path.join(
+  process.env.MB_MACHINE_DIR ||
+    (IS_WIN ? path.join(process.env.APPDATA || os.homedir(), "capacitor-android-builder")
+      : path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "capacitor-android-builder")),
+  "machine.json");
+function readMachine() {
+  const m = readJson(MACHINE_FILE, {});
+  // One-time migration: take paths from the old project settings only if they exist on this PC.
+  const old = readJson(CONFIG_FILE, {});
+  let changed = false;
+  for (const k of MACHINE_KEYS) {
+    if (!m[k] && old[k] && exists(old[k])) { m[k] = old[k]; changed = true; }
+  }
+  if (changed) writeMachine(m);
+  return m;
+}
+function writeMachine(m) {
+  try {
+    fs.mkdirSync(path.dirname(MACHINE_FILE), { recursive: true });
+    fs.writeFileSync(MACHINE_FILE, JSON.stringify(m, null, 2) + "\n");
+  } catch {}
+}
 function loadConfig() {
-  const cfg = { ...defaults(), ...readJson(CONFIG_FILE, {}) };
+  const project = readJson(CONFIG_FILE, {});
+  for (const k of MACHINE_KEYS) delete project[k];
+  const cfg = { ...defaults(), ...project, ...readMachine() };
   cfg.hasIcon = fs.existsSync(path.join(ICON_DIR, "source.png"));
   // The app version lives only in package.json (app updates read it from there).
   cfg.versionName = appVersion();
@@ -134,6 +161,9 @@ function loadConfig() {
 function saveConfig(cfg) {
   fs.mkdirSync(DATA, { recursive: true });
   const { hasIcon, versionName, publishKeySet, signing, ...rest } = cfg;
+  const machine = readJson(MACHINE_FILE, {});
+  for (const k of MACHINE_KEYS) { machine[k] = rest[k] || ""; delete rest[k]; }
+  writeMachine(machine);
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(rest, null, 2) + "\n");
 }
 
@@ -907,10 +937,6 @@ async function runJob(action) {
       if (!exists(path.join(ANDROID, IS_WIN ? "gradlew.bat" : "gradlew"))) {
         step("بیلد وب");
         await run(npm, ["run", "build", "--", "--mode", "android"], { env });
-      // Web build hash from dist/bundle.json (changes with every web code change).
-      const webKey = String(readJson(path.join(ROOT, "dist", "bundle.json"), {}).build || "");
-      // The first store's APK is the one installed on the phone / published.
-      apk = path.join(ARTIFACTS, apkName(cfg, cfg.stores[0], key, webKey));
         step("ساخت پروژه اندروید (cap add)");
         await run(npx, ["cap", "add", "android"], { env });
       }
@@ -927,6 +953,11 @@ async function runJob(action) {
 
       step("بیلد وب");
       await run(npm, ["run", "build", "--", "--mode", "android"], { env });
+
+      // Web build hash from dist/bundle.json (changes with every web code change).
+      const webKey = String(readJson(path.join(ROOT, "dist", "bundle.json"), {}).build || "");
+      // The first store's APK is the one installed on the phone / published.
+      apk = path.join(ARTIFACTS, apkName(cfg, cfg.stores[0], key, webKey));
 
       step("همگام‌سازی (cap sync)");
       await run(npx, ["cap", "sync", "android"], { env });
